@@ -10,8 +10,51 @@ module.exports = function (app, options) {
     emitter = options.emitter,
     nsApp = io.of('/devicewallapp'),
     nsCtrl = io.of('/devicewall'),
+    eventsApp = io.of('/browser-sync'),
     devices = require('./devices'),
     instances = require('./instances');
+
+
+  eventsApp.on('connection', function(client) {
+    console.log("got connection, yey");
+    // TODO check which of these config variables are used in browser-sync-client
+    client.emit('connection', {
+      server: false,
+      port: 3000,
+      ghostMode: { clicks: true, scroll: true, location: true, forms: true },
+      logLevel: 'info',
+      logPrefix: 'BS',
+      logConnections: false,
+      logFileChanges: true,
+      browser: 'disable',
+      xip: false,
+      hostnameSuffix: false,
+      notify: true,
+      scrollProportionally: true,
+      scrollThrottle: 0,
+      reloadDelay: 0,
+      injectChanges: true,
+      startPath: '/',
+      minify: true,
+      codeSync: true,
+      timestamps: true,
+      debugInfo: true,
+      https: false,
+      userAgentHeader: false,
+      syncLocation: true,
+      onBeforeUnload: true,
+      online: true
+    });
+    var events = ['scroll', 'click'];
+    _.forEach(events, function(event) {
+      client.on(event, handleClientEvent.bind(null, event, client));
+    });
+  });
+  function handleClientEvent(event, client, data) {
+    client.broadcast.emit(event, data);
+  }
+
+
 
   // Device
   nsApp.use(function(socket, next) {
@@ -170,6 +213,9 @@ module.exports = function (app, options) {
 
     function stopAll() {
       console.log("Control <<< stopAll");
+      if (eventsApp) {
+        eventsApp.emit('location', {url: config.deviceWallAppURL});
+      }
       instances.stopAll().done(function() {
         console.log('Control >> update', devices.toJSON());
         nsCtrl.emit('update', devices.toJSON());
